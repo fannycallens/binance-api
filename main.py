@@ -8,18 +8,9 @@ import asyncio
 
 async def main(loop):
     api_key = os.environ.get('api_key')
-    #print(api_key)
     api_secret = os.environ.get('api_key')
-
-    #print(api_secret)
     client = await api_client.AsyncClient.create(api_key, api_secret)
-    #client = await api_client.AsyncClient.create(testnet=True)
-    #client.API_URL = 'https://testnet.binance.vision/api'
-    #client = await api_client.AsyncClient.create()
-    #obm_socket = order_book_manager.DepthCacheManager(client, 'BNBBTC', loop)
-    obm_socket = order_book_manager.DepthCacheManager(client, 'BTCBUSD', loop)
-
-    #print(dir(obm_socket))
+    obm_socket = order_book_manager.DepthCacheManager(client, 'BNBBTC', loop)
 
     async with obm_socket:
         while True:
@@ -29,7 +20,6 @@ async def main(loop):
             print(depth_cache.get_bids()[:5])
             print("top 5 asks")
             print(depth_cache.get_asks()[:5])
-            #print("last update time {}".format(depth_cache.update_time))
 
 
 if __name__ == "__main__":

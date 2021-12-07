@@ -139,7 +139,7 @@ class ReconnectingWebsocket:
                 except gaierror as e:
                     self._log.debug(f"DNS Error ({e})")
                 except Exception as e:
-                    self._log.debug(f"BinanceWebsocketUnableToConnect ({e})")
+                    self._log.debug(f"WebsocketUnableToConnect ({e})")
                     break
                 except Exception as e:
                     self._log.debug(f"Unknown exception ({e})")
