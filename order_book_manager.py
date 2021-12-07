@@ -19,42 +19,38 @@ import ws_manager
 
 class OrderBook(object):
 
-    def __init__(self, symbol, conv_type=float):
-
+    def __init__(self, symbol):
         self.symbol = symbol
         self._bids = {}
         self._asks = {}
         self.update_time = None
-        self.conv_type = conv_type
         self._log = logging.getLogger(__name__)
 
     def add_bid(self, bid):
-
-        self._bids[bid[0]] = self.conv_type(bid[1])
+        self._bids[bid[0]] = float(bid[1])
         if bid[1] == "0.00000000":
             del self._bids[bid[0]]
 
     def add_ask(self, ask):
-
-        self._asks[ask[0]] = self.conv_type(ask[1])
+        self._asks[ask[0]] = float(ask[1])
         if ask[1] == "0.00000000":
             del self._asks[ask[0]]
 
     def get_bids(self):
         # Sort bids in descending order
-        return OrderBook.sort_depth(self._bids, reverse=True, conv_type=self.conv_type)
+        return OrderBook.sort_depth(self._bids, reverse=True)
 
     def get_asks(self):
         # Sort asks in ascending order
-        return OrderBook.sort_depth(self._asks, reverse=False, conv_type=self.conv_type)
+        return OrderBook.sort_depth(self._asks, reverse=False)
 
     @staticmethod
-    def sort_depth(vals, reverse=False, conv_type=float):
+    def sort_depth(vals, reverse=False):
         #Sort bids or asks by price
         if isinstance(vals, dict):
-            lst = [[conv_type(price), conv_type(quantity)] for price, quantity in vals.items()]
+            lst = [[float(price), float(quantity)] for price, quantity in vals.items()]
         elif isinstance(vals, list):
-            lst = [[conv_type(price), conv_type(quantity)] for price, quantity in vals]
+            lst = [[float(price), float(quantity)] for price, quantity in vals]
         else:
             raise ValueError(f'Unknown order book depth data type: {type(vals)}')
         lst = sorted(lst, key=itemgetter(0), reverse=reverse)
@@ -65,8 +61,7 @@ class OrderBookManagerBase:
     DEFAULT_REFRESH = 60 * 30  # 30 minutes
     TIMEOUT = 60
 
-    def __init__(self, client, symbol, loop=None, bm=None, limit=10, conv_type=float):
-
+    def __init__(self, client, symbol, loop=None, bm=None, limit=10):
         self._client = client
         self._order_book_cache = None
         self._loop = loop or asyncio.get_event_loop()
@@ -75,7 +70,6 @@ class OrderBookManagerBase:
         self._last_update_id = None
         self._ws_manager = bm or ws_manager.SocketManager(self._client, self._loop)
         self._conn_key = None
-        self._conv_type = conv_type
         self._log = logging.getLogger(__name__)
 
     async def __aenter__(self):
@@ -94,7 +88,7 @@ class OrderBookManagerBase:
         while not dc:
             try:
                 res = await asyncio.wait_for(self._socket.recv(), timeout=self.TIMEOUT)
-                #print(res)
+                print(res)
             except Exception as e:
                 print(e)
                 self._log.warning(e)
@@ -103,17 +97,14 @@ class OrderBookManagerBase:
         return dc
 
     async def _init_cache(self):
-
         # initialise or clear depth cache
-        self._order_book_cache = OrderBook(self._symbol, conv_type=self._conv_type)
+        self._order_book_cache = OrderBook(self._symbol)
 
     async def _start_socket(self):
-
         self._socket = self._get_socket()
         await self._socket.connect()
 
     async def _depth_event(self, msg):
-
         if not msg:
             return None
 
@@ -127,7 +118,6 @@ class OrderBookManagerBase:
         return await self._process_depth_message(msg)
 
     async def _process_depth_message(self, msg):
-
         # add any bid or ask values
         self._apply_orders(msg)
 
@@ -137,38 +127,34 @@ class OrderBookManagerBase:
         return res
 
     def _apply_orders(self, msg):
-        for bid in msg.get('b', []) + msg.get('bids', []):
+        for bid in msg.get('bids', []):
             self._order_book_cache.add_bid(bid)
-        for ask in msg.get('a', []) + msg.get('asks', []):
+        for ask in msg.get('asks', []):
             self._order_book_cache.add_ask(ask)
 
         # keeping update time
         self._order_book_cache.update_time = msg.get('E') or msg.get('lastUpdateId')
 
     def get_depth_cache(self):
-
         return self._order_book_cache
 
     async def close(self):
-
         self._order_book_cache = None
 
     def get_symbol(self):
-
         return self._symbol
 
 
 class OrderBookManager(OrderBookManagerBase):
 
     def __init__(
-        self, client, symbol, loop=None, bm=None, limit=500, conv_type=float, ws_interval=None
+        self, client, symbol, loop=None, bm=None, limit=500
     ):
-        super().__init__(client, symbol, loop, bm, limit, conv_type)
+        super().__init__(client, symbol, loop, bm, limit)
 
 
     async def _init_cache(self):
         # Initialise the depth cache calling REST endpoint
-
         self._last_update_id = None
         self._depth_message_buffer = []
 
@@ -207,7 +193,6 @@ class OrderBookManager(OrderBookManagerBase):
         return self._ws_manager.depth_socket(self._symbol, depth=5)
 
     async def _process_depth_message(self, msg):
-
         if self._last_update_id is None:
             # Initial depth snapshot fetch not yet performed, buffer messages
             self._depth_message_buffer.append(msg)
