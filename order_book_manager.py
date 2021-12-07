@@ -14,11 +14,10 @@ Receiving an event that removes a price level that is not in your local order bo
 import logging
 from operator import itemgetter
 import asyncio
-import time
 import ws_manager
 
 
-class DepthCache(object):
+class OrderBook(object):
 
     def __init__(self, symbol, conv_type=float):
 
@@ -42,12 +41,12 @@ class DepthCache(object):
             del self._asks[ask[0]]
 
     def get_bids(self):
-
-        return DepthCache.sort_depth(self._bids, reverse=True, conv_type=self.conv_type)
+        # Sort bids in descending order
+        return OrderBook.sort_depth(self._bids, reverse=True, conv_type=self.conv_type)
 
     def get_asks(self):
-
-        return DepthCache.sort_depth(self._asks, reverse=False, conv_type=self.conv_type)
+        # Sort asks in ascending order
+        return OrderBook.sort_depth(self._asks, reverse=False, conv_type=self.conv_type)
 
     @staticmethod
     def sort_depth(vals, reverse=False, conv_type=float):
@@ -62,19 +61,19 @@ class DepthCache(object):
         return lst
 
 
-class BaseDepthCacheManager:
+class OrderBookManagerBase:
     DEFAULT_REFRESH = 60 * 30  # 30 minutes
     TIMEOUT = 60
 
     def __init__(self, client, symbol, loop=None, bm=None, limit=10, conv_type=float):
 
         self._client = client
-        self._depth_cache = None
+        self._order_book_cache = None
         self._loop = loop or asyncio.get_event_loop()
         self._symbol = symbol
         self._limit = limit
         self._last_update_id = None
-        self._bm = bm or ws_manager.SocketManager(self._client, self._loop)
+        self._ws_manager = bm or ws_manager.SocketManager(self._client, self._loop)
         self._conn_key = None
         self._conv_type = conv_type
         self._log = logging.getLogger(__name__)
@@ -95,7 +94,7 @@ class BaseDepthCacheManager:
         while not dc:
             try:
                 res = await asyncio.wait_for(self._socket.recv(), timeout=self.TIMEOUT)
-                print(res)
+                #print(res)
             except Exception as e:
                 print(e)
                 self._log.warning(e)
@@ -106,16 +105,12 @@ class BaseDepthCacheManager:
     async def _init_cache(self):
 
         # initialise or clear depth cache
-        self._depth_cache = DepthCache(self._symbol, conv_type=self._conv_type)
+        self._order_book_cache = OrderBook(self._symbol, conv_type=self._conv_type)
 
     async def _start_socket(self):
 
         self._socket = self._get_socket()
         await self._socket.connect()
-
-
-    def _get_socket(self):
-        raise NotImplementedError
 
     async def _depth_event(self, msg):
 
@@ -137,37 +132,33 @@ class BaseDepthCacheManager:
         self._apply_orders(msg)
 
         # call the callback with the updated depth cache
-        res = self._depth_cache
-
-        # after processing event see if we need to refresh the depth cache
-        if self._refresh_interval and int(time.time()) > self._refresh_time:
-            await self._init_cache()
+        res = self._order_book_cache
 
         return res
 
     def _apply_orders(self, msg):
         for bid in msg.get('b', []) + msg.get('bids', []):
-            self._depth_cache.add_bid(bid)
+            self._order_book_cache.add_bid(bid)
         for ask in msg.get('a', []) + msg.get('asks', []):
-            self._depth_cache.add_ask(ask)
+            self._order_book_cache.add_ask(ask)
 
         # keeping update time
-        self._depth_cache.update_time = msg.get('E') or msg.get('lastUpdateId')
+        self._order_book_cache.update_time = msg.get('E') or msg.get('lastUpdateId')
 
     def get_depth_cache(self):
 
-        return self._depth_cache
+        return self._order_book_cache
 
     async def close(self):
 
-        self._depth_cache = None
+        self._order_book_cache = None
 
     def get_symbol(self):
 
         return self._symbol
 
 
-class DepthCacheManager(BaseDepthCacheManager):
+class OrderBookManager(OrderBookManagerBase):
 
     def __init__(
         self, client, symbol, loop=None, bm=None, limit=500, conv_type=float, ws_interval=None
@@ -190,10 +181,10 @@ class DepthCacheManager(BaseDepthCacheManager):
         self._apply_orders(res)
         if 'bids' in res :
             for bid in res['bids']:
-                self._depth_cache.add_bid(bid)
+                self._order_book_cache.add_bid(bid)
         if 'asks' in res :
             for ask in res['asks']:
-                self._depth_cache.add_ask(ask)
+                self._order_book_cache.add_ask(ask)
 
         # set first update id
         if 'lastUpdateId' in res:
@@ -213,7 +204,7 @@ class DepthCacheManager(BaseDepthCacheManager):
         await super()._start_socket()
 
     def _get_socket(self):
-        return self._bm.depth_socket(self._symbol, depth=5)
+        return self._ws_manager.depth_socket(self._symbol, depth=5)
 
     async def _process_depth_message(self, msg):
 
@@ -234,7 +225,7 @@ class DepthCacheManager(BaseDepthCacheManager):
         self._apply_orders(msg)
 
         # call the callback with the updated depth cache
-        res = self._depth_cache
+        res = self._order_book_cache
         if 'u' in msg :
             self._last_update_id = msg['u']
 

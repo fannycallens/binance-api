@@ -10,16 +10,16 @@ async def main(loop):
     api_key = os.environ.get('api_key')
     api_secret = os.environ.get('api_key')
     client = await api_client.AsyncClient.create(api_key, api_secret)
-    obm_socket = order_book_manager.DepthCacheManager(client, 'BNBBTC', loop)
+    obm_socket = order_book_manager.OrderBookManager(client, 'BNBBTC', loop)
 
     async with obm_socket:
         while True:
-            depth_cache = await obm_socket.recv()
-            print("symbol {}".format(depth_cache.symbol))
+            order_book = await obm_socket.recv()
+            print("symbol {}".format(order_book.symbol))
             print("top 5 bids")
-            print(depth_cache.get_bids()[:5])
+            print(order_book.get_bids()[:5])
             print("top 5 asks")
-            print(depth_cache.get_asks()[:5])
+            print(order_book.get_asks()[:5])
 
 
 if __name__ == "__main__":
