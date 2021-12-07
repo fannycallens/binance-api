@@ -9,7 +9,6 @@ While listening to the stream, each new event's U should be equal to the previou
 The data in each event is the absolute quantity for a price level.
 If the quantity is 0, remove the price level.
 Receiving an event that removes a price level that is not in your local order book can happen and is normal.
-
 '''
 
 import logging
@@ -114,14 +113,6 @@ class BaseDepthCacheManager:
         self._socket = self._get_socket()
         await self._socket.connect()
 
-        # import json
-        # subscribe_event = {
-        #     "method": "SUBSCRIBE",
-        #     "params": [self._socket._path],
-        #     "id": 1
-        # }
-        # json_subscribe_event = json.dumps(subscribe_event)
-        #self._socket.send(json_subscribe_event)
 
     def _get_socket(self):
         raise NotImplementedError

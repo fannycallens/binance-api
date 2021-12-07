@@ -241,85 +241,9 @@ class SocketManager:
         await self._stop_socket(path)
 
     def depth_socket(self, symbol: str, depth: [str] = None):
-        """Start a websocket for symbol market depth returning either a diff or a partial book
-
-        https://github.com/binance-exchange/binance-official-api-docs/blob/master/web-socket-streams.md#partial-book-depth-streams
-
-        :param symbol: required
-        :type symbol: str
-        :param depth: optional Number of depth entries to return, default None. If passed returns a partial book instead of a diff
-        :type depth: str
-        :param interval: optional interval for updates, default None. If not set, updates happen every second. Must be 0, None (1s) or 100 (100ms)
-        :type interval: int
-
-        :returns: connection key string if successful, False otherwise
-
-        Partial Message Format
-
-        .. code-block:: python
-
-            {
-                "lastUpdateId": 160,  # Last update ID
-                "bids": [             # Bids to be updated
-                    [
-                        "0.0024",     # price level to be updated
-                        "10",         # quantity
-                        []            # ignore
-                    ]
-                ],
-                "asks": [             # Asks to be updated
-                    [
-                        "0.0026",     # price level to be updated
-                        "100",        # quantity
-                        []            # ignore
-                    ]
-                ]
-            }
-
-
-        Diff Message Format
-
-        .. code-block:: python
-
-            {
-                "e": "depthUpdate", # Event type
-                "E": 123456789,     # Event time
-                "s": "BNBBTC",      # Symbol
-                "U": 157,           # First update ID in event
-                "u": 160,           # Final update ID in event
-                "b": [              # Bids to be updated
-                    [
-                        "0.0024",   # price level to be updated
-                        "10",       # quantity
-                        []          # ignore
-                    ]
-                ],
-                "a": [              # Asks to be updated
-                    [
-                        "0.0026",   # price level to be updated
-                        "100",      # quantity
-                        []          # ignore
-                    ]
-                ]
-            }
-
-        """
         socket_name = symbol.lower() + '@depth'
         if depth and depth != '1':
             socket_name = f'{socket_name}{depth}'
-        conn = self._get_socket(socket_name)
-        import json
-        subscribe_event = {
-        "method": "SUBSCRIBE",
-        "params": [socket_name],
-        "id": 1
-        }
-        json_subscribe_event = json.dumps(subscribe_event)
-        #self._conns.send(json_subscribe_event)
-        print(socket_name) #bnbbtc@depth5
-
-        #conn._socket.send(json_subscribe_event)
-        #print(dir(conns.ws))
         return self._get_socket(socket_name)
 
 

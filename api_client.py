@@ -52,19 +52,13 @@ class BaseClient:
         url = self.API_URL
         if self.testnet:
             url = self.API_TESTNET_URL
-
-        v = version
-        #return url + '/' + v + '/' + path
-        #v = self.PING_API_VERSION if path == 'ping' else version
-        #{'symbol': 'BNBBTC', 'limit': 500}
-        # https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000
         final_url = url + '/' + version + '/' + path
         if 'symbol' in kwargs and 'limit' in kwargs:
+            # https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000
             final_url += '?symbol=' + str(kwargs['symbol']) + '&' + 'limit=' + str(kwargs['limit'])
         return final_url
 
     def _generate_signature(self, data: Dict) -> str:
-
         ordered_data = self._order_params(data)
         query_string = '&'.join([f"{d[0]}={d[1]}" for d in ordered_data])
         m = hmac.new(self.API_SECRET.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256)
@@ -72,12 +66,6 @@ class BaseClient:
 
     @staticmethod
     def _order_params(data: Dict) -> List[Tuple[str, str]]:
-        """Convert params to list with signature as last element
-
-        :param data:
-        :return:
-
-        """
         data = dict(filter(lambda el: el[1] is not None, data.items()))
         has_signature = False
         params = []
@@ -93,41 +81,12 @@ class BaseClient:
         return params
 
     def _get_request_kwargs(self, method, signed: bool, force_params: bool = False, **kwargs) -> Dict:
-
         # set default requests timeout
         kwargs['timeout'] = self.REQUEST_TIMEOUT
-
-        # add our global requests params
-        if self._requests_params:
-            kwargs.update(self._requests_params)
-
-        data = kwargs.get('data', None)
-        if data and isinstance(data, dict):
-            kwargs['data'] = data
-
-            # find any requests params passed and apply them
-            if 'requests_params' in kwargs['data']:
-                kwargs.update(kwargs['data']['requests_params'])
-                del(kwargs['data']['requests_params'])
-
         if signed:
             # generate signature
             kwargs['data']['timestamp'] = int(time.time() * 1000 + self.timestamp_offset)
             kwargs['data']['signature'] = self._generate_signature(kwargs['data'])
-
-        # sort get and post params to match signature order
-        # if data:
-        #     # sort post params and remove any arguments with values of None
-        #     kwargs['data'] = self._order_params(kwargs['data'])
-        #     # Remove any arguments with values of None.
-        #     null_args = [i for i, (key, value) in enumerate(kwargs['data']) if value is None]
-        #     for i in reversed(null_args):
-        #         del kwargs['data'][i]
-
-        # if get request assign data array to params value for requests lib
-        if data and (method == 'get' or force_params):
-            kwargs['params'] = '&'.join('%s=%s' % (data[0], data[1]) for data in kwargs['data'])
-            del(kwargs['data'])
 
         return kwargs
 
@@ -145,26 +104,18 @@ class Client(BaseClient):
         self.ping()
 
     def _init_session(self) -> requests.Session:
-
         headers = self._get_headers()
-
         session = requests.session()
         session.headers.update(headers)
         return session
 
     def _request(self, method, uri: str, signed: bool, force_params: bool = False, **kwargs):
-        #print(uri)
         kwargs = self._get_request_kwargs(method, signed, force_params, **kwargs)
-
         self.response = getattr(self.session, method)(uri, **kwargs)
         return self._handle_response(self.response)
 
     @staticmethod
     def _handle_response(response: requests.Response):
-        """Internal helper for handling API responses from the Binance server.
-        Raises the appropriate exceptions when necessary; otherwise, returns the
-        response.
-        """
         if not (200 <= response.status_code < 300):
             raise Exception(response, response.status_code, response.text)
         try:
@@ -183,40 +134,6 @@ class Client(BaseClient):
 
 
     def get_order_book(self, **params) -> Dict:
-        """Get the Order Book for the market
-
-        https://binance-docs.github.io/apidocs/spot/en/#order-book
-
-        :param symbol: required
-        :type symbol: str
-        :param limit:  Default 100; max 1000
-        :type limit: int
-
-        :returns: API response
-
-        .. code-block:: python
-
-            {
-                "lastUpdateId": 1027024,
-                "bids": [
-                    [
-                        "4.00000000",     # PRICE
-                        "431.00000000",   # QTY
-                        []                # Can be ignored
-                    ]
-                ],
-                "asks": [
-                    [
-                        "4.00000200",
-                        "12.00000000",
-                        []
-                    ]
-                ]
-            }
-
-        :raises: Exception
-
-        """
         return self._get('depth', data=params, version=self.PUBLIC_API_VERSION)
 
     def close_connection(self):
@@ -248,11 +165,6 @@ class AsyncClient(BaseClient):
 
         try:
             await self.ping()
-
-            # calculate timestamp offset between local and binance server
-            #res = await self.get_server_time()
-            #self.timestamp_offset = res['serverTime'] - int(time.time() * 1000)
-
             return self
         except Exception:
             # If ping throw an exception, the current self must be cleaned
@@ -274,23 +186,14 @@ class AsyncClient(BaseClient):
             await self.session.close()
 
     async def _request(self, method, uri: str, signed: bool, force_params: bool = False, **kwargs):
-
-        #print(kwargs)
+        #add timeout param to request : {'timeout': 10} and signature
         kwargs = self._get_request_kwargs(method, signed, force_params, **kwargs)
-        #https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000
-        #print(kwargs)
-        #print(method)
-        #print(uri)
 
         async with getattr(self.session, method)(uri, **kwargs) as response:
             self.response = response
             return await self._handle_response(response)
 
     async def _handle_response(self, response: aiohttp.ClientResponse):
-        """Internal helper for handling API responses from the server.
-        Raises the appropriate exceptions when necessary; otherwise, returns the
-        response.
-        """
         if not str(response.status).startswith('2'):
             raise Exception(response, response.status, await response.text())
         try:
@@ -310,6 +213,5 @@ class AsyncClient(BaseClient):
         return await self._get('ping', version=self.PUBLIC_API_VERSION)
 
     async def get_order_book(self, **params) -> Dict:
-        #return await self._get('depth', signed=True, data=params, version=self.PUBLIC_API_VERSION)
-        #print(params)
+        #params = {'symbol': 'BTCBUSD', 'limit': 500}
         return await self._get('depth', version=self.PRIVATE_API_VERSION, **params)
