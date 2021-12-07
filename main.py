@@ -15,11 +15,10 @@ async def main(loop):
     async with obm_socket:
         while True:
             order_book = await obm_socket.recv()
-            print("symbol {}".format(order_book.symbol))
-            print("top 5 bids")
-            print(order_book.get_bids()[:5])
-            print("top 5 asks")
-            print(order_book.get_asks()[:5])
+            print("top bid entry")
+            print(order_book.get_bids()[0])
+            print("top ask entry")
+            print(order_book.get_asks()[0])
 
 
 if __name__ == "__main__":
