@@ -49,8 +49,6 @@ class OrderBook(object):
         #Sort bids or asks by price
         if isinstance(vals, dict):
             lst = [[float(price), float(quantity)] for price, quantity in vals.items()]
-        elif isinstance(vals, list):
-            lst = [[float(price), float(quantity)] for price, quantity in vals]
         else:
             raise ValueError(f'Unknown order book depth data type: {type(vals)}')
         lst = sorted(lst, key=itemgetter(0), reverse=reverse)
@@ -58,7 +56,6 @@ class OrderBook(object):
 
 
 class OrderBookManagerBase:
-    DEFAULT_REFRESH = 60 * 30  # 30 minutes
     TIMEOUT = 60
 
     def __init__(self, client, symbol, loop=None, bm=None, limit=10):
